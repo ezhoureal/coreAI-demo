@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+
+# Xcode build products and reports
+DerivedData/
+.derivedData/
+build/
+*.xcresult
+*.dSYM
+*.dSYM.zip
+*.ipa
+
+# Xcode per-user state
+xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+*.moved-aside
+
+# SwiftPM local build/checkouts
+.build/
+.swiftpm/
+
+# Keep resolved Swift package versions tracked for the Xcode app.
+!*.xcodeproj/project.xcworkspace/xcshareddata/
+!*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+!*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+# Local tooling and downloaded model artifacts
+.codex/
+.tools/
+Models/
