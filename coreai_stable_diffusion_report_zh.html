@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stable Diffusion 1.5 CoreAI 工作流报告</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18212b;
+      --muted: #5c6875;
+      --line: #d9e0e7;
+      --soft: #f4f7fa;
+      --panel: #ffffff;
+      --accent: #146c94;
+      --accent-2: #4f7d2a;
+      --code-bg: #101820;
+      --code-ink: #edf6ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background: #eef2f5;
+      line-height: 1.62;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 48px 28px 72px;
+    }
+
+    header {
+      padding: 34px 0 28px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(32px, 5vw, 54px);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 48px 0 16px;
+      font-size: 28px;
+      line-height: 1.22;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 28px 0 10px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    .lede {
+      max-width: 860px;
+      font-size: 18px;
+      color: var(--muted);
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 4px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-top: 24px;
+      padding: 26px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 18px 0 4px;
+    }
+
+    .step {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: var(--soft);
+      min-height: 154px;
+    }
+
+    .step strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--accent);
+    }
+
+    .callout {
+      margin: 18px 0;
+      padding: 16px 18px;
+      border-left: 4px solid var(--accent);
+      background: #eef8fb;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .role {
+      border-left-color: var(--accent-2);
+      background: #f1f7ec;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--soft);
+      color: #26313c;
+      font-weight: 650;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      margin: 14px 0 20px;
+      padding: 16px;
+      overflow-x: auto;
+      border-radius: 8px;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    pre code {
+      color: inherit;
+      font-size: inherit;
+    }
+
+    ul {
+      margin: 8px 0 18px 22px;
+      padding: 0;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    .source {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    figure {
+      margin: 18px 0 24px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--soft);
+    }
+
+    figure img,
+    figure video {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #000;
+    }
+
+    figcaption {
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      border-top: 1px solid var(--line);
+      background: #fff;
+    }
+
+    @media (max-width: 820px) {
+      main {
+        padding: 28px 16px 48px;
+      }
+
+      section {
+        padding: 20px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>通过 CoreAI 部署 Stable Diffusion 1.5 端到端工作流</h1>
+      <p class="lede">
+        本报告总结如何用CoreAI把 Stable Diffusion 1.5 从 Hugging Face / PyTorch 模型导出为 .aimodel 可执行资产，并在 macOS SwiftUI 应用中通过 CoreAI 相关接口完成本地文生图推理。
+      </p>
+      <div class="meta">
+        <span class="pill">模型：runwayml/stable-diffusion-v1-5</span>
+        <span class="pill">导出产物：.aimodel 组件目录</span>
+        <span class="pill">运行端：macOS 27 / Apple silicon</span>
+        <span class="pill">应用：Core AI Studio</span>
+      </div>
+    </header>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        当前 workflow 是一个清晰的部署链路：先用 Apple 的 <code>coreai-models</code> 导出器把 Stable Diffusion 1.5 转成 CoreAI 资产，再由 Xcode 将完整导出目录打进 app bundle，最后在 SwiftUI app 中通过 CoreAI diffusion pipeline 加载模型并执行本地推理。
+      </p>
+
+      <div class="grid" aria-label="Workflow">
+        <div class="step">
+          <strong>1. 导出模型</strong>
+          <p>通过 <code>uv run --no-dev coreai.diffusion.export</code> 调用 Apple 导出器，下载源权重并生成 CoreAI 模型目录。</p>
+        </div>
+        <div class="step">
+          <strong>2. 打包资产</strong>
+          <p>Xcode 将 <code>.tools/coreai-models/exports/stable-diffusion-v1-5</code> 作为 folder resource 复制进 app。</p>
+        </div>
+        <div class="step">
+          <strong>3. 本地推理</strong>
+          <p>Swift app 使用 <code>CoreAIDiffusionPipeline</code> 的 <code>StableDiffusionPipeline</code> 加载模型目录并生成 <code>CGImage</code>。</p>
+        </div>
+      </div>
+
+      <div class="callout role">
+        <strong>CoreAI 的角色：</strong>
+        CoreAI 的关键作用是把“模型部署”从手动管理模型图、权重、tensor 形状、设备执行和多组件调度，收敛成稳定的 <code>.aimodel</code> 资产与 Swift runtime 接口。导出阶段生成可部署资产；运行阶段由 CoreAI runtime 承接本地执行，<code>CoreAIDiffusion</code> 再把底层细节封装成 app 可直接调用的 diffusion API。
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>层级</th>
+            <th>项目中使用的模块 / 接口</th>
+            <th>职责</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>导出工具链</td>
+            <td><code>coreai.diffusion.export</code></td>
+            <td>把 <code>runwayml/stable-diffusion-v1-5</code> 转成 CoreAI diffusion export 目录。</td>
+          </tr>
+          <tr>
+            <td>CoreAI 资产</td>
+            <td><code>TextEncoder.aimodel</code>, <code>Unet.aimodel</code>, <code>VAEDecoder.aimodel</code>, <code>VAEEncoder.aimodel</code></td>
+            <td>保存可由 CoreAI runtime 加载执行的模型组件，以及 tokenizer 和 metadata。</td>
+          </tr>
+          <tr>
+            <td>Swift 封装层</td>
+            <td><code>CoreAIDiffusionPipeline</code>, <code>StableDiffusionPipeline</code>, <code>PipelineConfiguration</code></td>
+            <td>封装文本编码、scheduler、U-Net denoise loop、VAE decode 和进度回调。</td>
+          </tr>
+          <tr>
+            <td>应用层</td>
+            <td><code>DiffusionController</code>, <code>ContentView</code></td>
+            <td>管理模型目录、用户参数、异步任务、生成状态和图像展示/保存。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>最终效果展示</h2>
+
+      <figure>
+        <video controls preload="metadata" src="demo_video.mov">
+          当前浏览器不支持 HTML5 video，请直接打开 demo_video.mov 查看演示。
+        </video>
+        <figcaption>Demo video：Core AI Studio 加载 Stable Diffusion 1.5 CoreAI 导出模型并执行本地文生图。</figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2>Section 1: Export</h2>
+      <p>
+        导出阶段的输入是 Hugging Face 上的 Stable Diffusion 1.5 源模型，输出是一个完整的 CoreAI diffusion 模型目录。项目 README 中记录的标准命令如下：
+      </p>
+
+      <pre><code>git clone https://github.com/apple/coreai-models.git .tools/coreai-models
+cd .tools/coreai-models
+uv run --no-dev coreai.diffusion.export \
+  runwayml/stable-diffusion-v1-5 \
+  --output-dir exports</code></pre>
+
+      <p>
+        导出完成后，项目期望产物位于：
+      </p>
+
+      <pre><code>.tools/coreai-models/exports/stable-diffusion-v1-5</code></pre>
+
+      <p>
+        当前导出目录的关键文件结构包括：
+      </p>
+
+      <pre><code>stable-diffusion-v1-5/
+  metadata.json
+  tokenizer/
+    tokenizer_config.json
+    special_tokens_map.json
+    merges.txt
+    vocab.json
+  TextEncoder.aimodel/
+    metadata.json
+    main.mlirb
+    main.hash
+  Unet.aimodel/
+    metadata.json
+    main.mlirb
+    main.hash
+  VAEDecoder.aimodel/
+    metadata.json
+    main.mlirb
+    main.hash
+  VAEEncoder.aimodel/
+    metadata.json
+    main.mlirb
+    main.hash</code></pre>
+
+      <h3>导出阶段 CoreAI 做了什么</h3>
+      <ul>
+        <li>把扩散模型拆成可独立执行的 CoreAI 组件：文本编码器、U-Net、VAE decoder/encoder。</li>
+        <li>将模型图和权重保存为 <code>.aimodel</code> asset，每个组件内部包含二进制模型表示 <code>main.mlirb</code> 和 metadata/hash。</li>
+        <li>保留 tokenizer 与 pipeline metadata，使 Swift 侧可以直接恢复完整文生图 pipeline，而不是手写每个 tensor 输入输出。</li>
+      </ul>
+
+      <div class="callout">
+        一键式导出，Swift 运行时只依赖导出后的 CoreAI 模型目录。
+      </div>
+    </section>
+
+    <section>
+      <h2>Section 2: Integrate and Inference</h2>
+      <p>
+        集成阶段分为“把模型目录加入 app bundle”和“运行时加载 pipeline”两步。Xcode project 里将导出目录声明为资源：
+      </p>
+
+      <pre><code>/* stable-diffusion-v1-5 */
+path = ".tools/coreai-models/exports/stable-diffusion-v1-5";
+sourceTree = SOURCE_ROOT;
+
+/* CoreAIDiffusion Swift package */
+repositoryURL = "https://github.com/apple/coreai-models";
+productName = CoreAIDiffusion;</code></pre>
+
+      <p>
+        Swift 代码中直接使用的核心模块是 <code>CoreAIDiffusionPipeline</code>：
+      </p>
+
+      <pre><code>import CoreAIDiffusionPipeline
+
+@MainActor
+final class DiffusionController: ObservableObject {
+    @Published var prompt = "A cinematic photograph of a lighthouse above a stormy sea at dusk"
+    @Published var negativePrompt = "blurry, low quality, distorted"
+    @Published var steps = 20
+    @Published var guidanceScale = 7.5
+    @Published var seed: UInt32 = 42
+
+    private var pipeline: StableDiffusionPipeline?
+    @Published private(set) var modelURL: URL?
+}</code></pre>
+
+      <h3>模型选择与校验</h3>
+      <p>
+        app 启动时优先加载 bundle 内的 <code>stable-diffusion-v1-5</code> 目录；用户也可以选择另一个兼容导出目录。校验逻辑检查 <code>metadata.json</code> 或 <code>.aimodel</code> 文件是否存在：
+      </p>
+
+      <pre><code>private var bundledModelURL: URL? {
+    Bundle.main.url(forResource: bundledModelName, withExtension: nil)
+}
+
+private func isModelDirectory(_ url: URL) -> Bool {
+    let fileManager = FileManager.default
+    if fileManager.fileExists(atPath: url.appendingPathComponent("metadata.json").path) {
+        return true
+    }
+    guard let contents = try? fileManager.contentsOfDirectory(
+        at: url,
+        includingPropertiesForKeys: nil,
+        options: [.skipsHiddenFiles]
+    ) else { return false }
+    return contents.contains { $0.pathExtension == "aimodel" }
+}</code></pre>
+
+      <h3>构造推理配置</h3>
+      <p>
+        用户在 UI 中输入 prompt、negative prompt、steps、guidance scale 和 seed。Controller 将这些参数转换成 <code>PipelineConfiguration</code>：
+      </p>
+
+      <pre><code>let configuration = PipelineConfiguration(
+    prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines),
+    negativePrompt: negativePrompt.trimmingCharacters(in: .whitespacesAndNewlines),
+    seed: seed,
+    stepCount: steps,
+    guidanceScale: Float(guidanceScale),
+    schedulerType: .dpmSolverMultistep,
+    lazyModelLoading: true
+)</code></pre>
+
+      <h3>加载 pipeline 并生成图像</h3>
+      <p>
+        <code>StableDiffusionPipeline.load(from:)</code> 负责从 CoreAI export 目录恢复完整 pipeline；<code>generateImages(configuration:)</code> 发起文生图推理，并通过回调更新进度。
+      </p>
+
+      <pre><code>private func loadPipelineIfNeeded() async throws -> StableDiffusionPipeline {
+    if let pipeline { return pipeline }
+    guard let modelURL else { throw ModelError.noModel }
+
+    state = .loading
+    progress = 0
+    let loaded = try await StableDiffusionPipeline.load(from: modelURL)
+    pipeline = loaded
+    return loaded
+}
+
+let activePipeline = try await self.loadPipelineIfNeeded()
+self.state = .generating
+self.progress = 0
+
+let result = try await activePipeline.generateImages(configuration: configuration) { update in
+    let fraction = Double(update.step + 1) / Double(max(update.totalSteps, 1))
+    Task { @MainActor in
+        self.progress = fraction
+    }
+    return !Task.isCancelled
+}
+
+self.generatedImage = result.images.first</code></pre>
+
+      <h3>UI 与输出</h3>
+      <p>
+        <code>ContentView</code> 使用 SwiftUI 表单绑定 controller 状态。生成成功后，<code>generatedImage</code> 被显示为可缩放图片，并可通过 <code>ImageIO</code> 保存为 PNG。
+      </p>
+
+      <pre><code>if let image = controller.generatedImage {
+    Image(decorative: image, scale: 1)
+        .resizable()
+        .scaledToFit()
+        .padding(32)
+} else {
+    ContentUnavailableView(
+        "No Image",
+        systemImage: "photo",
+        description: Text(controller.state.message)
+    )
+}</code></pre>
+
+      <div class="callout role">
+        <strong>推理阶段 CoreAI 的角色：</strong>
+        app 代码没有直接操作 <code>AIModel</code> / <code>NDArray</code> 这类底层 CoreAI runtime API；它使用 <code>CoreAIDiffusion</code> 提供的高层 diffusion pipeline。该 pipeline 在内部负责加载多个 <code>.aimodel</code> 组件、准备 tensor、执行 denoising steps、调度 scheduler，并把最终 latent 解码为图像。
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>代码位置</th>
+            <th>关键接口</th>
+            <th>作用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>coreAI/DiffusionController.swift</code></td>
+            <td><code>StableDiffusionPipeline.load(from:)</code></td>
+            <td>从 bundle 或用户选择的目录加载 CoreAI diffusion 模型。</td>
+          </tr>
+          <tr>
+            <td><code>coreAI/DiffusionController.swift</code></td>
+            <td><code>PipelineConfiguration</code></td>
+            <td>封装 prompt、negative prompt、seed、steps、guidance scale、scheduler 等推理参数。</td>
+          </tr>
+          <tr>
+            <td><code>coreAI/DiffusionController.swift</code></td>
+            <td><code>generateImages(configuration:progress:)</code></td>
+            <td>执行文生图推理，返回生成图片并提供 step 级进度。</td>
+          </tr>
+          <tr>
+            <td><code>coreAI/ContentView.swift</code></td>
+            <td><code>@StateObject</code>, <code>Form</code>, <code>Image</code>, <code>ProgressView</code></td>
+            <td>呈现输入参数、推理状态、进度和输出图像。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>3. 调试工具</h2>
+      <p>
+        除了 app 级状态和日志，这个项目还可以用 Core AI Debugger、Xcode Debug Gauge 与 Instruments 观察 CoreAI 模型的结构、加载、推理、设备执行和正确性。三者关注点不同：Core AI Debugger 更靠近模型本身，适合在 app 集成前查看模型图、运行模型并验证输出；Debug Gauge 适合快速确认一次运行的总体性能状态；Instruments 适合展开时间线并定位具体 CoreAI activity。
+      </p>
+
+      <h3>Core AI Debugger</h3>
+      <p>
+        <a href="https://developer.apple.com/core-ai-debugger/">Core AI Debugger</a> 是 Apple 提供的 CoreAI 模型调试工具。它用于连接建模和部署阶段：可视化 CoreAI 模型结构，追踪 operation 之间的数据流；选择配对设备进行 specialization 并运行模型；载入 reference intermediate values 后比较同步点上的相似度指标，例如 PSNR，从而定位导出后或设备执行时的数值 divergence。
+      </p>
+      <p>
+        对本项目来说，它适合放在导出后、app 集成前的验证阶段：先检查 <code>TextEncoder.aimodel</code>、<code>Unet.aimodel</code>、<code>VAEDecoder.aimodel</code> 等组件的结构与数据流，再用 reference run 检查关键中间 tensor，最后再进入 Swift app 侧的 pipeline 集成和性能调试。
+      </p>
+
+      <figure>
+        <img src="core_ai_debugger_validate.png" alt="Apple Core AI Debugger tensor comparison view showing tensors and absolute difference visualization">
+        <figcaption>Core AI Debugger：官方 tensor comparison 视图，用于对比参考输出和 CoreAI 模型输出，帮助定位 inference correctness 问题。图片来源：Apple Developer Core AI Debugger 页面。</figcaption>
+      </figure>
+
+      <h3>Xcode Debug Gauge / Core AI Report</h3>
+      <p>
+        Debug Gauge 的 Core AI Report 可以在 app 运行时直接看到 CoreAI 相关指标，例如 inference、load、specialization 的耗时，以及进程级 CPU、memory、energy impact。截图中单次推理事件大约在 600-700 ms 区间，load 只有微秒级，说明模型加载完成后，主要时间花在实际 inference 上。
+      </p>
+
+      <figure>
+        <img src="instrument.png" alt="Xcode Debug Gauge Core AI Report showing inference, load, specialization metrics">
+        <figcaption>Image #2：Xcode Debug Gauge 的 Core AI Report，展示 inference、load、specialization 和进程资源状态。</figcaption>
+      </figure>
+
+      <h3>Instruments / Core AI Timeline</h3>
+      <p>
+        Instruments 的 Core AI 视图能进一步展开到时间线、模型函数、GPU / Neural Engine / CPU 轨道，以及具体 activity。截图中选中的事件是 <code>Run streaming function func_19</code>，持续约 81 ms；下方事件表还显示了 <code>Load function model::main</code>、<code>Run setup for model::main</code>、<code>Function Encode</code>、<code>Prepare streaming function</code> 等阶段。这些信息用于判断开销来自模型加载、函数 setup、编码阶段，还是 streaming inference 本身。
+      </p>
+
+      <figure>
+        <img src="debug_guage.png" alt="Instruments Core AI timeline showing model main function setup and streaming function activity">
+        <figcaption>Image #1：Instruments Core AI 时间线，展示模型函数、GPU/CPU 活动和 CoreAI streaming function 的详细事件。</figcaption>
+      </figure>
+
+      <table>
+        <thead>
+          <tr>
+            <th>工具</th>
+            <th>主要用途</th>
+            <th>本项目中关注的信号</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Core AI Debugger</td>
+            <td>在 app 集成前检查 CoreAI 模型本身。</td>
+            <td>模型结构、operation 数据流、设备 specialization、reference output / intermediate tensor 对比、PSNR 等正确性信号。</td>
+          </tr>
+          <tr>
+            <td>Debug Gauge / Core AI Report</td>
+            <td>快速查看一次 app 运行中的 CoreAI 汇总指标。</td>
+            <td>Inference 时长、load 时长、specialization 时长、memory、energy impact。</td>
+          </tr>
+          <tr>
+            <td>Instruments / Core AI</td>
+            <td>按时间线分析 CoreAI activity 和设备执行轨道。</td>
+            <td>模型函数 setup、function encode、streaming function、GPU / CPU / Neural Engine 使用情况。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>调试价值：</strong>
+        Core AI Debugger 先帮助确认模型结构和数值正确性；Debug Gauge 快速查看 app 运行时的 CoreAI 汇总指标；Instruments 再把每次推理拆成 CoreAI load、setup、encode、inference activity，并和GPU, NPU, CPU的活动轨道相对照来分析性能。
+      </div>
+    </section>
+
+    <section>
+      <h2>结论</h2>
+      <p>
+        CoreAI框架覆盖了模型端测部署到全流程：模型导出、端侧推理、调试，显著降低部署复杂度。
+      </p>
+      <p>
+        PyTorch 模型到 Apple silicon 本地执行之间的模型格式、编译表示、runtime 加载、设备执行和推理观测能力全部统一起来 app 侧不需要重新实现底层模型执行管线，只需要集成导出的资产并调用高层 Swift API。
+      </p>
+    </section>
+  </main>
+</body>
+</html>
