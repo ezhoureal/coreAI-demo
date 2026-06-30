@@ -600,6 +600,75 @@ self.generatedImage = result.images.first</code></pre>
     </section>
 
     <section>
+      <h2>4. CoreAI 与 CANN（华为昇腾）部署流程对比</h2>
+      <p>
+        以下从模型导出、量化、工具链获取、调试和端侧集成五个维度，对比 CoreAI 与 CANN（华为昇腾）在 Stable Diffusion 等扩散模型部署上的差异。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:16%">对比维度</th>
+            <th style="width:42%">CoreAI（Apple）</th>
+            <th style="width:42%">CANN（华为昇腾）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>1. 模型导出</strong></td>
+            <td>
+              一键命令 <code>uv run --no-dev coreai.diffusion.export</code> 自动下载源权重并生成 <code>.aimodel</code> 资产目录。导出器内置 Stable Diffusion pipeline 拆分逻辑，无需手写模型图转换代码。
+            </td>
+            <td>
+              需要自行完成 <strong>PyTorch → ONNX → .om</strong> 的多阶段导出：先写脚本将 PyTorch 模型导出为 ONNX，检查 ONNX 模型结构与数值正确性，再通过 ATC（Ascend Tensor Compiler）或 msModelSlim 工具将 ONNX 转为 .om 离线模型。每个阶段的转换脚本、shape 推理、算子映射均需开发者自行实现和维护。
+            </td>
+          </tr>
+          <tr>
+            <td><strong>2. 量化支持</strong></td>
+            <td>
+              CoreAI 支持多种压缩方案，包括 4-bit palletization，可在保持精度的同时大幅减少模型体积和内存占用。
+            </td>
+            <td>
+              部分算子支持 <strong>INT8 量化</strong>（通过 ATC 的 <code>--precision_mode=force_fp16</code> / 量化配置文件），但不支持 4-bit palletization。需要开发者手动指定量化层和校准数据集。
+            </td>
+          </tr>
+          <tr>
+            <td><strong>3. 工具链获取</strong></td>
+            <td>
+              通过 <code>git clone</code> + <code>uv run</code> 即可获取完整工具链，依赖自动解析，无需手动下载额外组件。
+            </td>
+            <td>
+              CANN Kit 工具包需要从华为昇腾社区<strong>手动下载多个独立模块</strong>（如 Ascend-cann-toolkit、Ascend-cann-kernels、Ascend-cann-nnal 等）。
+            </td>
+          </tr>
+          <tr>
+            <td><strong>4. 模型调试与正确性验证</strong></td>
+            <td>
+              提供 <strong>Core AI Debugger</strong> 可视化工具：可在 app 集成前查看模型结构与数据流，选择设备进行 specialization，并通过 reference intermediate values 对比 PSNR 等相似度指标定位数值 divergence。配合 Xcode Debug Gauge 和 Instruments 时间线，覆盖从模型结构到运行时性能的全链路可观测性。
+            </td>
+            <td>
+              当前<strong>没有等效的 model debugger</strong>。正确性和精度确认需要开发者自行实现验证脚本（如对比 ONNX Runtime 与昇腾推理输出的逐层 cosine similarity / MSE）。每轮模型调优或算子替换后，均需重新手写或调整验证逻辑，缺乏标准化的可视化对比工具。
+            </td>
+          </tr>
+          <tr>
+            <td><strong>5. 端侧集成与部署代码</strong></td>
+            <td>
+              部署代码为 <strong>Swift</strong>。通过 <code>StableDiffusionPipeline.load(from:)</code> 一行加载模型目录，<code>generateImages(configuration:)</code> 执行推理。CoreAI 内置完整的 diffusion pipeline（文本编码、scheduler、U-Net denoise loop、VAE decode），开发者无需实现底层推理流程。
+            </td>
+            <td>
+              部署代码为 <strong>C++</strong>。通用 diffusion / VLM 推理流程需要开发者<strong>自行用 C 代码实现</strong>（包括文本编码、denoising loop、scheduler、VAE decode 等），并通过调用 CANN Kit 的 C API（如 <code>aclmdlExecute</code>、<code>aclrtLaunchKernel</code> 等）执行模型推理。在 HarmonyOS 场景下，还需额外实现 <strong>NAPI 模块</strong>将 C++ 能力桥接到 ArkTS（ets）层，才能在前端调用。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>总结：</strong>
+        CoreAI 将模型导出、量化压缩、工具链获取、调试与运行时推理全部统一在单一框架内，提供从 PyTorch 到端侧执行的一站式体验。CANN 在每个环节都需要开发者承担更多工程工作——自行编写转换/验证/推理流程代码、手动管理工具链依赖，且缺乏模型级调试器和 4-bit 压缩能力。对于 Stable Diffusion 这类复杂多组件扩散模型的端侧部署，CoreAI 显著降低了工程门槛和维护成本。
+      </div>
+    </section>
+
+    <section>
       <h2>结论</h2>
       <p>
         CoreAI框架覆盖了模型端测部署到全流程：模型导出、端侧推理、调试，显著降低部署复杂度。
